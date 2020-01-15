@@ -28,6 +28,7 @@ def train():
   hparams.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
   train_loc_set, train_time_set, adj, test_loc_set, test_time_set = load_data(hparams) 
   eta_model = ETAModelMLP(hparams).to(hparams.device)
+  torch.save(eta_model.state_dict(), "/data/wuning/RN-GNN/beijing/model/rn_gcn_eta.model")
 #  eta_model = torch.nn.DataParallel(eta_model, device_ids=[0,1,2])
 #  eta_model = eta_model.cuda()
   criterion = torch.nn.MSELoss()
@@ -44,24 +45,29 @@ def train():
       time_batch = np.array(time_batch)  
       if not len(loc_batch) == 100:
         continue  
+
+      label = (time_batch[:, -1, 2] - time_batch[:, 1, 2]) / 3600.0
+      if label.max() > 1.0:
+        continue
+
       loc_batch_tensor = torch.tensor(loc_batch, dtype = torch.long, device = hparams.device)
       pred = eta_model(loc_batch_tensor, adj_tensor)
-      label = (time_batch[:, -1, 2] - time_batch[:, 1, 2]) / 3600.0
       label = torch.tensor(label, dtype = torch.float, device = hparams.device)
       loss = criterion(pred, label)
       print(loss.item())
-      if count > 5000:
+      if count > 500:
         erres.append(loss.item())
       else:
         loss.backward()
         model_optimizer.step()
 
-      print(eta_model.embedding.grad)
-      print("emb grad:", np.mean(eta_model.embedding.grad.cpu().numpy(), 1))
-      print("influence node:", 16000 - sum(np.mean(eta_model.embedding.grad.cpu().numpy(), 1) == 0))
+#      print(eta_model.embedding.grad)
+#      print("emb grad:", np.mean(eta_model.embedding.grad.cpu().numpy(), 1))
+#      print("influence node:", 16000 - sum(np.mean(eta_model.embedding.grad.cpu().numpy(), 1) == 0))
       count += 1
-      if count % 100 == 0:
-        print("count: ", count)    
+#      if count % 100 == 0:
+#        print("count: ", count)    
+    torch.save(eta_model.state_dict(), "/data/wuning/NTLR/beijing/model/rn_gcn_eta.model_" + str(i))
     print("test_loss:", np.mean(np.array(erres)))
 
 #      mse = evaluate(eta_model, test_loc_set, test_time_set, hparams, adj_tensor)

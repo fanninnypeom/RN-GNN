@@ -2,7 +2,7 @@
 import torch
 from torch.nn.parameter import Parameter
 from torch.nn.modules.module import Module
-from gcn_layers import GraphConvolution
+from gcn_layers import *
 import torch.nn as nn
 from cmt_gen import get_cmt
 import torch.nn.functional as F
@@ -108,10 +108,18 @@ class PlainGCN(Module):
     super(PlainGCN, self).__init__()
     self.hparams = hparams
 
-    self.plain_conv = GraphConvolution(
-        in_features=self.hparams.node_dims,
-        out_features=self.hparams.node_dims,
-        device=self.hparams.device).to(self.hparams.device)
+#    self.plain_conv = GraphConvolution(
+#        in_features=self.hparams.node_dims,
+#        out_features=self.hparams.node_dims,
+#        device=self.hparams.device).to(self.hparams.device)
+
+    self.plain_conv = SPGAT(
+        in_features = self.hparams.node_dims,
+        out_features = self.hparams.node_dims,
+        dropout = self.hparams.dropout,
+        alpha = self.hparams.alpha,
+        device = self.hparams.device).to(self.hparams.device)
+
 
   def forward(self, inputs, adj, cmt_weight):  #one layer CN-GNN
     node_out = F.relu(self.plain_conv(inputs.unsqueeze(0), adj.unsqueeze(0).float())).squeeze()
