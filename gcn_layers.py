@@ -38,6 +38,57 @@ class SpecialSpmm(nn.Module):
   def forward(self, indices, values, shape, b):  # indices, value and shape define a sparse tensor, it will do mm() operation with b
     return SpecialSpmmFunction.apply(indices, values, shape, b)
 
+class SPGCN(Module):
+  def __init__(self, in_features, out_features, device, concat=True):
+    super(SPGAT, self).__init__()
+    self.in_features = in_features
+    self.out_features = out_features
+    self.concat = concat
+    self.device = device
+
+    self.W = nn.Parameter(torch.zeros(size=(in_features, out_features)))
+    nn.init.xavier_normal_(self.W.data, gain=1.414)
+    self.a = nn.Parameter(torch.zeros(size=(1, 2*out_features)))
+    nn.init.xavier_normal_(self.a.data, gain=1.414)
+    self.leakyrelu = nn.LeakyReLU(self.alpha)
+    self.special_spmm = SpecialSpmm()
+    pass
+  def forward(self, inputs, adj):
+    inputs = inputs.squeeze()
+ #   adj = adj.squeeze()
+    dv = self.device
+#    self_loop = torch.eye(adj.shape[0]).to(self.device)
+#    adj = adj + self_loop
+    N = inputs.size()[0]
+#    edge = adj.nonzero().t()
+    edge = adj._indices()
+    edge = edge[1:, :]
+    h = inputs #torch.mm(inputs, self.W)
+    # h: N x out
+    assert not torch.isnan(h).any()
+#    edge_h = torch.cat((h[edge[0, :], :], h[edge[1, :], :]), dim=1).t()
+    # edge: 2*D x E
+#    edge_e = torch.exp(-self.leakyrelu(self.a.mm(edge_h).squeeze()))
+    edge_e = torch.ones(edge.shape[1], dtype=torch.float)
+    assert not torch.isnan(edge_e).any()
+    # edge_e: E
+    e_rowsum = self.special_spmm(edge, edge_e, torch.Size([N, N]), torch.ones(size=(N,1), device=dv))
+    # e_rowsum: N x 1
+    edge_e = self.dropout(edge_e)
+    # edge_e: E
+    h_prime = self.special_spmm(edge, edge_e, torch.Size([N, N]), h)
+    assert not torch.isnan(h_prime).any()
+    # h_prime: N x out
+    h_prime = h_prime.div(e_rowsum)
+    # h_prime: N x out
+    assert not torch.isnan(h_prime).any()
+    if self.concat:   # if this layer is not last layer,
+      return F.elu(h_prime)
+    else:    # if this layer is last layer
+      return h_prime
+
+
+
 
 class SPGAT(Module):
   def __init__(self, in_features, out_features, dropout, alpha, device, concat=True):
@@ -58,13 +109,16 @@ class SPGAT(Module):
     pass
   def forward(self, inputs, adj):
     inputs = inputs.squeeze()
-    adj = adj.squeeze()
+ #   adj = adj.squeeze()
     dv = self.device
-    self_loop = torch.eye(adj.shape[0]).to(self.device)
-    adj = adj + self_loop
+#    self_loop = torch.eye(adj.shape[0]).to(self.device)
+#    adj = adj + self_loop
     N = inputs.size()[0]
-    edge = adj.nonzero().t()
-    h = inputs #torch.mm(inputs, self.W)
+#    edge = adj.nonzero().t()
+    edge = adj._indices()
+#    print(edge.shape)
+#    edge = edge[1:, :]
+    h = torch.mm(inputs, self.W)
     # h: N x out
     assert not torch.isnan(h).any()
     edge_h = torch.cat((h[edge[0, :], :], h[edge[1, :], :]), dim=1).t()
@@ -105,7 +159,7 @@ class GraphConvolution(Module):
     self.reset_parameters()
 
   def reset_parameters(self):
-    stdv = self.device
+    stdv = 0.5
     self.weight.data.uniform_(-stdv, stdv)
     if self.bias is not None:
       self.bias.data.uniform_(-stdv, stdv)
