@@ -12,6 +12,7 @@ beijing_hparams = {
     "train_loc_set" : "/data/wuning/NTLR/beijing/train_loc_set",
     "train_time_set" : "/data/wuning/NTLR/beijing/train_time_set_eta",
     "adj" : "/data/wuning/map-matching/allGraph",
+    "t_adj" : "/data/wuning/RN-GNN/beijing/loc_tra_adj",
     "node_features" : "/data/wuning/RN-GNN/beijing/node_features",
     "spectral_label" : "/data/wuning/RN-GNN/beijing/spectral_label",
     "struct_assign" : "/data/wuning/RN-GNN/beijing/spectral_label",
@@ -31,6 +32,7 @@ beijing_hparams = {
     "eta_learning_rate" : 1e-4,
     "gae_learning_rate" : 5e-4,
     "g2s_learning_rate" : 1e-4,
+    "g2t_learning_rate" : 1e-4,
     "lp_learning_rate" : 1e-4,
     "loc_pred_gnn_layer" : 1,
 
@@ -46,8 +48,11 @@ beijing_hparams = {
 
     "clip":0.1,
     "g2s_clip":1.0,
-    "lp_clip":1.0
-
+    "g2t_clip":1.0,
+    "lp_clip":1.0,
+    
+    "g2t_sample_num":2000,
+    "g2t_epoch":1000, 
     }
 
 

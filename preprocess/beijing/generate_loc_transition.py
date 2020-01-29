@@ -9,6 +9,9 @@ for batch in train_loc_set:
       for j in range(1, skips + 1):  
         if i + j < len(tra):  
           loc_adj[tra[i]][tra[i + j]] += 1       
+          if not tra[i] == tra[i + j]:
+            loc_adj[tra[i + j]][tra[i]] += 1       
+
 
 pickle.dump(loc_adj, open("/data/wuning/RN-GNN/beijing/loc_tra_adj", "wb"))                    
 

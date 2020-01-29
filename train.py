@@ -69,6 +69,59 @@ def train_loc_pred():
         torch.save(lp_model.state_dict(), "/data/wuning/NTLR/beijing/model/lp.model_" + str(i))
       count += 1
 
+def train_fnc_cmt_rst():   #train fnc by reconstruction
+  hparams = dict_to_object(beijing_hparams)
+  os.environ["CUDA_VISIBLE_DEVICES"] = str(hparams.device)
+  hparams.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  adj, features, struct_assign, t_adj = load_loc_rst_data(hparams) 
+  ce_criterion = torch.nn.MSELoss()
+ 
+  adj_indices = torch.tensor(np.concatenate([adj.row[:, np.newaxis], adj.col[:, np.newaxis]], 1), dtype=torch.long).t()
+  adj_values = torch.tensor(adj.data, dtype=torch.float)
+  adj_shape = adj.shape
+  adj_tensor = torch.sparse.FloatTensor(adj_indices, adj_values, adj_shape)
+
+  t_adj_indices = torch.tensor(np.concatenate([t_adj.row[:, np.newaxis], t_adj.col[:, np.newaxis]], 1), dtype=torch.long).t()
+  t_adj_values = torch.tensor(t_adj.data, dtype=torch.float)
+  t_adj_shape = t_adj.shape
+  t_adj_tensor = torch.sparse.FloatTensor(t_adj_indices, t_adj_values, t_adj_shape)
+
+  features = features.astype(np.int)
+
+  lane_feature = torch.tensor(features[:, 0], dtype=torch.long, device = hparams.device)
+  type_feature = torch.tensor(features[:, 1], dtype=torch.long, device = hparams.device)
+  length_feature = torch.tensor(features[:, 2], dtype=torch.long, device = hparams.device)
+  node_feature = torch.tensor(features[:, 3], dtype=torch.long, device = hparams.device)
+  struct_assign = torch.tensor(struct_assign, dtype=torch.float, device = hparams.device)
+
+  g2t_model = GraphAutoencoderTra(hparams).to(hparams.device)
+
+  model_optimizer = optim.Adam(g2t_model.parameters(), lr=hparams.g2t_learning_rate)
+
+  for i in range(hparams.g2t_epoch):
+    print("epoch", i)
+    input_edge, label = generate_edge(t_adj, hparams.g2t_sample_num)  
+    label = torch.tensor(label, dtype=torch.float, device = hparams.device)
+    input_edge = torch.tensor(input_edge, dtype=torch.long, device = hparams.device)
+    pred = g2t_model(lane_feature, type_feature, length_feature, node_feature, adj_tensor, t_adj_tensor, struct_assign, input_edge)
+    count = 0
+#    print("pred 0-100", pred[:100])
+#    print("label 0-100", label[:100])
+
+#    print("pred -100", pred[-100:])
+#    print("label -100", label[-100:])
+
+    loss = ce_criterion(pred, label)
+    loss.backward(retain_graph=True)
+    torch.nn.utils.clip_grad_norm_(g2t_model.parameters(), hparams.g2t_clip)
+    model_optimizer.step()
+#      print("grad:", g2s_model.linear.weight.grad)
+    if count % 10 == 0:
+      print(loss.item())
+      torch.save(g2t_model.state_dict(), "/data/wuning/RN-GNN/beijing/model/g2t.model_" + str(i))
+      pickle.dump(g2t_model.fnc_assign.tolist(), open("/data/wuning/RN-GNN/beijing/fnc_assign", "wb"))
+      count += 1
+
 
 
 
@@ -278,6 +331,6 @@ if __name__ == '__main__':
   setup_seed(42)
 #  train_struct_cmt()  #get struct assign by autoencoder
 #  train_fnc_cmt_loc()  #get fnc assign by graph2seq
-  train_loc_pred()  # three stage model for loc prediction
-    
+#  train_loc_pred()  # three stage model for loc prediction
+  train_fnc_cmt_rst() #get fnc assign by autoencoder -> reconstruct transition graph  
 

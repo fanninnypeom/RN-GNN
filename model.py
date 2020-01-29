@@ -256,12 +256,56 @@ class PlainGCN(Module):
     node_out = F.relu(self.plain_conv(inputs.unsqueeze(0), adj.unsqueeze(0).float())).squeeze()
     return node_out
 
-class GraphAutoencoderLoc(Module):
+class GraphAutoencoderTra(Module):
   def __init__(self, hparams):
-    super(GraphAutoencoder, self).__init__()
-    pass
-  def forward(self):
-    pass  
+    super(GraphAutoencoderTra, self).__init__()
+    self.hparams = hparams
+    self.special_spmm = SpecialSpmm()
+    self.fnc_cmt_gat = GraphConvolution(
+      in_features = self.hparams.struct_cmt_dims,
+      out_features = self.hparams.fnc_cmt_num,
+      device = self.hparams.device).to(self.hparams.device)
+    self.node_emb_layer = nn.Embedding(hparams.node_num, hparams.node_dims).to(self.hparams.device)
+    self.type_emb_layer = nn.Embedding(hparams.type_num, hparams.type_dims).to(self.hparams.device)
+    self.length_emb_layer = nn.Embedding(hparams.length_num, hparams.length_dims).to(self.hparams.device)
+    self.lane_emb_layer = nn.Embedding(hparams.lane_num, hparams.lane_dims).to(self.hparams.device)
+    self.linear = torch.nn.Linear(hparams.hidden_dims * 3, 100)
+
+  def forward(self, lane_feature, type_feature, length_feature, node_feature, raw_adj, t_adj, struct_assign, s_edge):
+    node_emb = self.node_emb_layer(node_feature)
+    type_emb = self.type_emb_layer(type_feature)
+    length_emb = self.length_emb_layer(length_feature)
+    lane_emb = self.lane_emb_layer(lane_feature)
+    self.raw_feat = torch.cat([lane_emb, type_emb, length_emb, node_emb], 1)
+    self.struct_assign = struct_assign
+#    self.struct_assign = F.softmax(struct_assign, 0)
+    self.struct_emb = torch.mm(self.struct_assign.t(), self.raw_feat)
+    edge = raw_adj._indices()#.to(self.hparams.device)
+    edge_e = torch.ones(edge.shape[1], dtype=torch.float).to(self.hparams.device)
+    struct_inter = self.special_spmm(edge, edge_e, torch.Size([raw_adj.shape[0], raw_adj.shape[1]]), self.struct_assign)  #N*N   N*C
+
+#    print("struct_inter:", struct_inter)
+    temp = torch.sparse_coo_tensor(edge, edge_e, torch.Size([raw_adj.shape[0], raw_adj.shape[1]]))
+#    print("temp:", temp)
+#    print("struct_assign", stuct_assign)
+#    print("struct_inter dense:", torch.mm(torch.sparse_coo_tensor(edge, edge_e, torch.Size([raw_adj.shape[0], raw_adj.shape[1]])).to_dense(), self.struct_assign))
+#    print(torch.sparse_coo_tensor(edge, edge_e, torch.Size([raw_adj.shape[0], raw_adj.shape[1]])).to_dense()[0, :], self.struct_assign[:, 0])
+    struct_adj = torch.mm(self.struct_assign.t(), struct_inter)
+    #print("struct_assign:", struct_assign[0, :], struct_assign[10, :], struct_assign[100, :])
+    self.fnc_assign = self.fnc_cmt_gat(self.struct_emb.unsqueeze(0), struct_adj.unsqueeze(0)).squeeze()
+#    print(self.fnc_assign[:20, :])
+    self.fnc_assign = F.softmax(self.fnc_assign, 0)
+    self.fnc_emb = torch.mm(self.fnc_assign.t(), self.struct_emb)
+
+    N_C = torch.mm(self.struct_assign, self.struct_emb)
+    N_F = torch.mm(torch.mm(self.struct_assign, self.fnc_assign), self.fnc_emb)
+    X = torch.cat([self.raw_feat, N_C, N_F], 1)
+    X = self.linear(X)
+ 
+#    pred_edge = self.linear(torch.cat([X[s_edge[0, :], :], X[s_edge[1, :]], 1))
+    pred_edge = torch.einsum('ij,ij->i', X[s_edge[0, :], :], X[s_edge[1, :], :]) 
+
+    return pred_edge
  
 class GraphAutoencoder(Module):
   def __init__(self, hparams):
