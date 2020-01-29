@@ -14,6 +14,8 @@ beijing_hparams = {
     "adj" : "/data/wuning/map-matching/allGraph",
     "node_features" : "/data/wuning/RN-GNN/beijing/node_features",
     "spectral_label" : "/data/wuning/RN-GNN/beijing/spectral_label",
+    "struct_assign" : "/data/wuning/RN-GNN/beijing/spectral_label",
+    "fnc_assign" : "/data/wuning/RN-GNN/beijing/fnc_assign",
 
     "gru_dims": 512,
     "gru_layers" : 1,
@@ -28,7 +30,9 @@ beijing_hparams = {
     "gae_epoch" : 1000,
     "eta_learning_rate" : 1e-4,
     "gae_learning_rate" : 5e-4,
-    "g2s_learning_rate" : 1e-3,
+    "g2s_learning_rate" : 1e-4,
+    "lp_learning_rate" : 1e-4,
+    "loc_pred_gnn_layer" : 1,
 
     "alpha":0.2,
     "dropout":0.6,
@@ -39,8 +43,10 @@ beijing_hparams = {
     "lane_dims":32,
     "length_dims":32,
     "type_dims":32,
+
     "clip":0.1,
     "g2s_clip":1.0,
+    "lp_clip":1.0
 
     }
 

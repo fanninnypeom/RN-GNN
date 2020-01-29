@@ -35,6 +35,40 @@ def load_g2s_data(hparams):
 
   return adj, node_features, spectral_label, train_cmt_set
 
+def load_loc_pred_data(hparams):
+  adj = pickle.load(open(hparams.adj, "rb"))
+  self_loop = np.eye(len(adj))
+  adj = np.array(adj) + self_loop
+  adj = sparse.coo_matrix(adj)
+  node_features = pickle.load(open(hparams.node_features, "rb"))
+  node_features = node_features.tolist()
+  while len(node_features) < 16000:
+    node_features.append(['0', '0', '0', '0'])
+  node_features = np.array(node_features)
+
+  struct_assign = pickle.load(open(hparams.struct_assign, "rb"))
+  fnc_assign = pickle.load(open(hparams.fnc_assign, "rb"))
+
+  train_loc_set = pickle.load(open(hparams.train_loc_set, "rb"))
+
+  return adj, node_features, struct_assign, fnc_assign, train_loc_set
+
+def load_g2s_loc_data(hparams):
+  adj = pickle.load(open(hparams.adj, "rb"))
+  self_loop = np.eye(len(adj))
+  adj = np.array(adj) + self_loop
+  adj = sparse.coo_matrix(adj)
+  node_features = pickle.load(open(hparams.node_features, "rb"))
+  node_features = node_features.tolist()
+  while len(node_features) < 16000:
+    node_features.append(['0', '0', '0', '0'])
+  node_features = np.array(node_features)
+
+  spectral_label = pickle.load(open(hparams.spectral_label, "rb"))
+  train_loc_set = pickle.load(open(hparams.train_loc_set, "rb"))
+
+  return adj, node_features, spectral_label, train_loc_set
+
 
 def load_gae_data(hparams):
   adj = pickle.load(open(hparams.adj, "rb"))

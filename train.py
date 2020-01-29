@@ -22,6 +22,105 @@ def evaluate(eta_model, test_loc_set, test_time_set, hparams, adj_tensor):
     mses.append(mse.item())
   return np.mean(mses)
 
+def train_loc_pred():
+  hparams = dict_to_object(beijing_hparams)
+  os.environ["CUDA_VISIBLE_DEVICES"] = str(hparams.device)
+  hparams.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  adj, features, struct_assign, fnc_assign, train_loc_set = load_loc_pred_data(hparams) 
+  ce_criterion = torch.nn.CrossEntropyLoss()
+ 
+  adj_indices = torch.tensor(np.concatenate([adj.row[:, np.newaxis], adj.col[:, np.newaxis]], 1), dtype=torch.long).t()
+  adj_values = torch.tensor(adj.data, dtype=torch.float)
+  adj_shape = adj.shape
+  adj_tensor = torch.sparse.FloatTensor(adj_indices, adj_values, adj_shape)
+
+  features = features.astype(np.int)
+
+  lane_feature = torch.tensor(features[:, 0], dtype=torch.long, device = hparams.device)
+  type_feature = torch.tensor(features[:, 1], dtype=torch.long, device = hparams.device)
+  length_feature = torch.tensor(features[:, 2], dtype=torch.long, device = hparams.device)
+  node_feature = torch.tensor(features[:, 3], dtype=torch.long, device = hparams.device)
+ 
+  struct_assign = torch.tensor(struct_assign, dtype=torch.float, device = hparams.device)
+  fnc_assign = torch.tensor(fnc_assign, dtype=torch.float, device = hparams.device)
+
+  lp_model = LocPredModel(hparams, lane_feature, type_feature, length_feature, node_feature, adj_tensor, struct_assign, fnc_assign).to(hparams.device)
+
+  model_optimizer = optim.Adam(lp_model.parameters(), lr=hparams.lp_learning_rate)
+
+  for i in range(hparams.gae_epoch):
+    print("epoch", i)  
+    count = 0
+    for batch in train_loc_set:
+      model_optimizer.zero_grad()  
+      if len(batch[0]) < 4: 
+        continue     
+      input_tra = torch.tensor(np.array(batch)[:, :-1], dtype=torch.long, device = hparams.device)  
+      pred_label = torch.tensor(np.array(batch)[:, 1:], dtype=torch.long, device = hparams.device)  
+      pred = lp_model(input_tra)
+#      pred = pred.permute(1, 0, 2)
+      loss = ce_criterion(pred.view(-1, hparams.node_num), pred_label.view(-1))
+      loss.backward(retain_graph=True)
+      torch.nn.utils.clip_grad_norm_(lp_model.parameters(), hparams.lp_clip)
+      model_optimizer.step()
+#      print("grad:", g2s_model.linear.weight.grad)
+      if count % 200 == 0:
+        print(loss.item())
+        torch.save(lp_model.state_dict(), "/data/wuning/NTLR/beijing/model/lp.model_" + str(i))
+      count += 1
+
+
+
+
+def train_fnc_cmt_loc():
+  hparams = dict_to_object(beijing_hparams)
+  os.environ["CUDA_VISIBLE_DEVICES"] = str(hparams.device)
+  hparams.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+  adj, features, main_assign, train_cmt_set = load_g2s_loc_data(hparams) 
+  ce_criterion = torch.nn.CrossEntropyLoss()
+ 
+  adj_indices = torch.tensor(np.concatenate([adj.row[:, np.newaxis], adj.col[:, np.newaxis]], 1), dtype=torch.long).t()
+  adj_values = torch.tensor(adj.data, dtype=torch.float)
+  adj_shape = adj.shape
+  adj_tensor = torch.sparse.FloatTensor(adj_indices, adj_values, adj_shape)
+
+  features = features.astype(np.int)
+
+  lane_feature = torch.tensor(features[:, 0], dtype=torch.long, device = hparams.device)
+  type_feature = torch.tensor(features[:, 1], dtype=torch.long, device = hparams.device)
+  length_feature = torch.tensor(features[:, 2], dtype=torch.long, device = hparams.device)
+  node_feature = torch.tensor(features[:, 3], dtype=torch.long, device = hparams.device)
+  main_assign = torch.tensor(main_assign, dtype=torch.float, device = hparams.device)
+
+  g2s_model = Graph2SeqLoc(hparams, lane_feature, type_feature, length_feature, node_feature, adj_tensor, main_assign).to(hparams.device)
+
+  model_optimizer = optim.Adam(g2s_model.parameters(), lr=hparams.g2s_learning_rate)
+
+  for i in range(hparams.gae_epoch):
+    print("epoch", i)  
+    count = 0
+    for batch in train_cmt_set:
+      model_optimizer.zero_grad()  
+      if len(batch[0]) < 4: 
+        continue     
+      input_tra = torch.tensor(np.array(batch)[:, :-1], dtype=torch.long, device = hparams.device)  
+      pred_label = torch.tensor(np.array(batch)[:, 1:], dtype=torch.long, device = hparams.device)  
+      pred = g2s_model(input_tra)
+#      pred = pred.permute(1, 0, 2)
+      loss = ce_criterion(pred.view(-1, hparams.node_num), pred_label.view(-1))
+      loss.backward(retain_graph=True)
+      torch.nn.utils.clip_grad_norm_(g2s_model.parameters(), hparams.g2s_clip)
+      model_optimizer.step()
+#      print("grad:", g2s_model.linear.weight.grad)
+      if count % 200 == 0:
+        print(loss.item())
+        torch.save(g2s_model.state_dict(), "/data/wuning/NTLR/beijing/model/g2s.model_" + str(i))
+        pickle.dump(g2s_model.fnc_assign.tolist(), open("/data/wuning/RN-GNN/beijing/fnc_assign", "wb"))
+         
+      count += 1
+
+
+
 def train_fnc_cmt():
   hparams = dict_to_object(beijing_hparams)
   os.environ["CUDA_VISIBLE_DEVICES"] = str(hparams.device)
@@ -42,7 +141,7 @@ def train_fnc_cmt():
   node_feature = torch.tensor(features[:, 3], dtype=torch.long, device = hparams.device)
   main_assign = torch.tensor(main_assign, dtype=torch.float, device = hparams.device)
 
-  g2s_model = Graph2Seq(hparams, lane_feature, type_feature, length_feature, node_feature, adj_tensor, main_assign).to(hparams.device)
+  g2s_model = Graph2SeqCmt(hparams, lane_feature, type_feature, length_feature, node_feature, adj_tensor, main_assign).to(hparams.device)
 
   model_optimizer = optim.Adam(g2s_model.parameters(), lr=hparams.g2s_learning_rate)
 
@@ -177,6 +276,8 @@ def setup_seed(seed):
 
 if __name__ == '__main__':
   setup_seed(42)
-  train_fnc_cmt()  
+#  train_struct_cmt()  #get struct assign by autoencoder
+#  train_fnc_cmt_loc()  #get fnc assign by graph2seq
+  train_loc_pred()  # three stage model for loc prediction
     
 
