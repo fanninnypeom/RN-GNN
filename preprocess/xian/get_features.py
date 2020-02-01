@@ -48,7 +48,7 @@ for i in range(len(locList)):
   lanes = 1
   if "lanes" in node["properties"]:
     lanes = int(node["properties"]["lanes"])
-  node_features.append([lanes, node["properties"]["highway"], length, i])
+  node_features.append([lanes, length, i])# node["properties"]["highway"]
 
 node_features = np.array(node_features)
 type_set = pd.Series(node_features[:, 1])
@@ -58,6 +58,6 @@ node_features[:, 2] = (node_features[:, 2].astype(np.float) / 0.01).astype(np.in
 
 node_features = node_features.astype(np.int)
 
-pickle.dump(node_features, open("/data/wuning/RN-GNN/xian/node_features", "wb"))
+pickle.dump(node_features, open("/data/wuning/RN-GNN/xian/node_features_nh", "wb"))
 
 #length dividede by 0.01  230 id 

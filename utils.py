@@ -86,6 +86,67 @@ def load_g2s_data(hparams):
 
   return adj, node_features, spectral_label, train_cmt_set
 
+def get_label_train_data(hparams):
+  label_pred_train = pickle.load(open(hparams.label_train_set, "rb"))
+  label_train_true = label_pred_train[:-100]
+  label_train_false = [] 
+  while len(label_train_false) < len(label_train_true):
+    node = random.randint(0, hparams.node_num - 1)      
+    if (not node in label_train_false) and (not node in label_train_true):
+      label_train_false.append(node)           
+
+  label_train_set = label_train_false
+  label_train_set.extend(label_train_true)
+  label_train_real = [0 for i in range(int(len(label_train_set) / 2))]
+  label_train_real.extend([1 for i in range(int(len(label_train_set) / 2))])
+
+  label_test_false = pickle.load(open(hparams.label_train_set_false, "rb"))
+  label_test_true = label_pred_train[-100:]
+  label_test_set = label_test_false
+  label_test_set.extend(label_test_true)
+  label_test_real = [0 for i in range(100)]
+  label_test_real.extend([1 for i in range(100)]) 
+
+  return label_train_set, label_train_real, label_test_set, label_test_real
+
+
+
+def load_label_pred_data(hparams):
+  adj = pickle.load(open(hparams.adj, "rb"))
+  self_loop = np.eye(len(adj))
+  adj = np.array(adj) + self_loop
+  adj = sparse.coo_matrix(adj)
+  node_features = pickle.load(open(hparams.node_features, "rb"))
+  node_features = node_features.tolist()
+  while len(node_features) < 16000:
+    node_features.append(['0', '0', '0', '0'])
+  node_features = np.array(node_features)
+
+  struct_assign = pickle.load(open(hparams.struct_assign, "rb"))
+  fnc_assign = pickle.load(open(hparams.fnc_assign, "rb"))
+
+  return adj, node_features, struct_assign, fnc_assign
+
+def load_des_pred_data(hparams):
+  adj = pickle.load(open(hparams.adj, "rb"))
+  self_loop = np.eye(len(adj))
+  adj = np.array(adj) + self_loop
+  adj = sparse.coo_matrix(adj)
+  node_features = pickle.load(open(hparams.node_features, "rb"))
+  node_features = node_features.tolist()
+  while len(node_features) < 16000:
+    node_features.append(['0', '0', '0', '0'])
+  node_features = np.array(node_features)
+
+  struct_assign = pickle.load(open(hparams.struct_assign, "rb"))
+  fnc_assign = pickle.load(open(hparams.fnc_assign, "rb"))
+
+  train_loc_set = pickle.load(open(hparams.train_loc_set, "rb"))
+
+  return adj, node_features, struct_assign, fnc_assign, train_loc_set
+
+
+
 def load_loc_pred_data(hparams):
   adj = pickle.load(open(hparams.adj, "rb"))
   self_loop = np.eye(len(adj))

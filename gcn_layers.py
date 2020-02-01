@@ -40,7 +40,7 @@ class SpecialSpmm(nn.Module):
 
 class SPGCN(Module):
   def __init__(self, in_features, out_features, device, concat=True):
-    super(SPGAT, self).__init__()
+    super(SPGCN, self).__init__()
     self.in_features = in_features
     self.out_features = out_features
     self.concat = concat
@@ -50,7 +50,7 @@ class SPGCN(Module):
     nn.init.xavier_normal_(self.W.data, gain=1.414)
     self.a = nn.Parameter(torch.zeros(size=(1, 2*out_features)))
     nn.init.xavier_normal_(self.a.data, gain=1.414)
-    self.leakyrelu = nn.LeakyReLU(self.alpha)
+#    self.leakyrelu = nn.LeakyReLU(self.alpha)
     self.special_spmm = SpecialSpmm()
     pass
   def forward(self, inputs, adj):
@@ -62,20 +62,21 @@ class SPGCN(Module):
     N = inputs.size()[0]
 #    edge = adj.nonzero().t()
     edge = adj._indices()
-    edge = edge[1:, :]
-    h = inputs #torch.mm(inputs, self.W)
+#    edge = edge[1:, :]
+    h = torch.mm(inputs, self.W)
     # h: N x out
     assert not torch.isnan(h).any()
 #    edge_h = torch.cat((h[edge[0, :], :], h[edge[1, :], :]), dim=1).t()
     # edge: 2*D x E
 #    edge_e = torch.exp(-self.leakyrelu(self.a.mm(edge_h).squeeze()))
-    edge_e = torch.ones(edge.shape[1], dtype=torch.float)
+    edge_e = torch.ones(edge.shape[1], dtype=torch.float).to(self.device)
     assert not torch.isnan(edge_e).any()
     # edge_e: E
     e_rowsum = self.special_spmm(edge, edge_e, torch.Size([N, N]), torch.ones(size=(N,1), device=dv))
     # e_rowsum: N x 1
-    edge_e = self.dropout(edge_e)
+#    edge_e = self.dropout(edge_e)
     # edge_e: E
+     
     h_prime = self.special_spmm(edge, edge_e, torch.Size([N, N]), h)
     assert not torch.isnan(h_prime).any()
     # h_prime: N x out

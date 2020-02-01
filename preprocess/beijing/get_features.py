@@ -4,6 +4,7 @@ from math import sin, cos, sqrt, atan2, radians
 import pickle
 import numpy as np
 import pandas as pd
+from numpy import random
 
 def get_distance(lat1, lon1, lat2, lon2):
   lat1 = radians(lat1)
@@ -40,6 +41,9 @@ def calc_length(coords):
     last_cd = cd
   return length
 
+tsp_set = []
+tsp_label = []
+
 node_features = []
 for i in range(len(locList)):
   node = id2road[int(locList[i])]
@@ -48,8 +52,26 @@ for i in range(len(locList)):
   lanes = 1
   if "lanes" in node["properties"]:
     lanes = int(node["properties"]["lanes"])
-  node_features.append([lanes, node["properties"]["highway"], length, i])
+  node_features.append([lanes, length, i])# node["properties"][highway]
+ # print("type:", node["properties"]["highway"])
+#  print(node["properties"])
+#  if "bridge" in node["properties"]:
+#    print("bridge")  
+  if "bridge" in node["properties"]:
+#    print(node["properties"]["bridge"])
+    tsp_set.append(i)   
+    tsp_label.append(1) 
+#    print(i)
+tsp_false_set = []
+while(len(tsp_false_set) < 100):
+  node = random.randint(16000 - 1)    
+  if (not node in tsp_set) and (not node in tsp_false_set):
+    tsp_false_set.append(node)   
+      
 
+label_pred_train_set = []
+
+  
 node_features = np.array(node_features)
 type_set = pd.Series(node_features[:, 1])
 labels, levels = pd.factorize(type_set)
@@ -58,6 +80,11 @@ node_features[:, 2] = (node_features[:, 2].astype(np.float) / 0.01).astype(np.in
 
 node_features = node_features.astype(np.int)
 
-pickle.dump(node_features, open("/data/wuning/RN-GNN/beijing/node_features", "wb"))
+pickle.dump(node_features, open("/data/wuning/RN-GNN/beijing/node_features_nh", "wb"))
 
+pickle.dump(tsp_set, open("/data/wuning/RN-GNN/beijing/label_pred_train_set", "wb"))
+
+pickle.dump(tsp_false_set, open("/data/wuning/RN-GNN/beijing/label_pred_train_set_false", "wb"))
+
+#pickle.dump(tsp_set, open("/data/wuning/RN-GNN/beijing/label_pred_train_set", "wb"))
 #length dividede by 0.01  230 id 
