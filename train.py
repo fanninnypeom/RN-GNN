@@ -144,16 +144,16 @@ def train_gcn_loc_pred():
       torch.nn.utils.clip_grad_norm_(lp_model.parameters(), hparams.lp_clip)
       model_optimizer.step()
 #      print("grad:", g2s_model.linear.weight.grad)
-      if count % 2000 == 0 and (not count == 0):
-        test_loc_pred(lp_model, test_loc_set, hparams, 5)  
-        test_loc_pred(lp_model, test_loc_set, hparams, 10)  
+#      if count % 2000 == 0 and (not count == 0):
+#        test_loc_pred(lp_model, test_loc_set, hparams, 5)  
+#        test_loc_pred(lp_model, test_loc_set, hparams, 10)  
       if count % 200 == 0:
 #        test_loc_pred(lp_model, test_loc_set, hparams, 5)  
         test_loc_pred(lp_model, test_loc_set, hparams, 1)  
         print("step ", str(count))
         print("new gcn : ")
         print(loss.item())
-        torch.save(lp_model.state_dict(), "/data/wuning/NTLR/beijing/model/lp.model_" + str(i))
+#        torch.save(lp_model.state_dict(), "/data/wuning/NTLR/beijing/model/lp.model_" + str(i))
       count += 1
 
 
@@ -208,7 +208,7 @@ def train_gat_loc_pred():
         print("step ", str(count))
         print("gat:")
         print(loss.item())
-        torch.save(lp_model.state_dict(), "/data/wuning/NTLR/beijing/model/lp.model_" + str(i))
+#        torch.save(lp_model.state_dict(), "/data/wuning/NTLR/beijing/model/lp.model_" + str(i))
       count += 1
 
 
@@ -259,10 +259,10 @@ def train_loc_pred():
       if count % 200 == 0:
 #        test_loc_pred(lp_model, test_loc_set, hparams, 5)  
         test_loc_pred(lp_model, test_loc_set, hparams, 1)  
-        test_loc_pred(lp_model, test_loc_set, hparams, 5)  
+#        test_loc_pred(lp_model, test_loc_set, hparams, 5)  
         print("step ", str(count))
         print(loss.item())
-        torch.save(lp_model.state_dict(), "/data/wuning/NTLR/beijing/model/lp.model_" + str(i))
+#        torch.save(lp_model.state_dict(), "/data/wuning/NTLR/beijing/model/lp.model_" + str(i))
       count += 1
 
 def train_fnc_cmt_rst():   #train fnc by reconstruction
@@ -520,9 +520,9 @@ if __name__ == '__main__':
 #  train_struct_cmt()  #get struct assign by autoencoder
 #  train_fnc_cmt_loc()  #get fnc assign by graph2seq
 #  train_fnc_cmt_rst() #get fnc assign by autoencoder -> reconstruct transition graph  
-#  train_loc_pred()  # three stage model for loc prediction
+  train_loc_pred()  # three stage model for loc prediction
 #  train_gat_loc_pred() # gat baseline model
-  train_gcn_loc_pred()  # gcn baseline model
+#  train_gcn_loc_pred()  # gcn baseline model
 #  train_gru_loc_pred() # gru baseline model
 
 

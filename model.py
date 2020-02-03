@@ -321,7 +321,7 @@ class LabelPredModel(Module):
     
     self.node_emb = self.graph_enc(node_feature, type_feature, length_feature, lane_feature, adj)
 
-    self.linear = torch.nn.Linear(hparams.hidden_dims * 1, hparams.label_num)
+    self.linear = torch.nn.Linear(hparams.hidden_dims * 2, hparams.label_num)
  
     self.linear_red_dim = torch.nn.Linear(hparams.hidden_dims, 100)
 
@@ -332,11 +332,47 @@ class LabelPredModel(Module):
   
 #    input_emb = torch.cat((self.out_node_emb[input_bat], self.init_emb[input_bat]), 2)  # self.gru_embedding(input_bat)
 
-#    output_state = torch.cat((self.node_emb[input_bat], self.init_emb[input_bat]), 1)
-    output_state = self.node_emb[input_bat]
+    output_state = torch.cat((self.node_emb[input_bat], self.init_emb[input_bat]), 1)
+#    output_state = self.node_emb[input_bat]
+#    output_state = self.init_emb[input_bat]
     pred_tra = self.linear(output_state)
 
     return pred_tra
+
+class RoutePlanModel(Module):
+  def __init__(self, hparams, lane_feature, type_feature, length_feature, node_feature, adj, struct_assign, fnc_assign):
+    super(RoutePlanModel, self).__init__() 
+    self.hparams = hparams
+    self.special_spmm = SpecialSpmm()
+
+    edge = adj._indices().to(self.hparams.device)
+    edge_e = torch.ones(edge.shape[1], dtype=torch.float).to(self.hparams.device)
+    struct_inter = self.special_spmm(edge, edge_e, torch.Size([adj.shape[0], adj.shape[1]]), struct_assign)  #N*N   N*C
+    struct_adj = torch.mm(struct_assign.t(), struct_inter)  # get struct_adj
+
+    self.graph_enc = GraphEncoderTL(hparams, struct_assign, fnc_assign, struct_adj)
+    
+    self.node_emb = self.graph_enc(node_feature, type_feature, length_feature, lane_feature, adj)
+
+    self.gru = nn.GRU(hparams.hidden_dims * 1 , hparams.hidden_dims)
+
+    self.linear = torch.nn.Linear(hparams.hidden_dims, hparams.node_num)
+ 
+    self.linear_red_dim = torch.nn.Linear(hparams.hidden_dims, 100)
+
+
+  def forward(self, input_bat, des): #batch_size * length * dims
+    init_hidden = torch.zeros(1, input_bat.shape[0], self.hparams.hidden_dims, device=self.hparams.device)
+    self.init_emb = self.graph_enc.init_feat
+#    input_emb = self.init_emb[input_bat]
+    input_emb = self.node_emb[input_bat]
+    des_emb = self.node_emb[des]
+    output_state, _ = self.gru(input_emb.view(input_emb.shape[1], input_emb.shape[0], input_emb.shape[2]), init_hidden)
+    output_state = output_state + des_emb
+    pred_tra = self.linear(output_state)
+
+    return pred_tra
+
 
 
 
@@ -452,23 +488,33 @@ class GraphEncoderTLCore(Module):
 ## F2F
 #    print("fnc_emb:", self.fnc_emb.cpu())
     self.fnc_adj = torch.mm(self.fnc_emb, self.fnc_emb.t())        #n_f * n_f
-    self.fnc_emb = self.fnc_gcn(self.fnc_emb.unsqueeze(0), self.fnc_adj.unsqueeze(0)).squeeze()
+#    print("fnc adj:", self.fnc_adj)
+#    print("fnc assign", torch.sum(self.fnc_assign, 0), torch.sum(self.fnc_assign, 1))
+#    self.fnc_emb = self.fnc_gcn(self.fnc_emb.unsqueeze(0), self.fnc_adj.unsqueeze(0)).squeeze()
 
 ## F2C
-#    fnc_message = torch.mm(self.fnc_assign, self.fnc_emb)
-#    self.r_f = self.sigmoid(self.l_c(torch.cat((self.struct_emb, fnc_message), 1)))
-#    self.struct_emb = self.struct_emb + self.r_f * fnc_message
+    fnc_message = torch.mm(self.fnc_assign, self.fnc_emb)
+#    print("fnc message:", fnc_message)
+    self.r_f = self.sigmoid(self.l_c(torch.cat((self.struct_emb, fnc_message), 1)))
+    self.struct_emb = self.struct_emb + self.r_f * fnc_message
 
 ## C2C
+    struct_adj = F.relu(struct_adj - torch.eye(struct_adj.shape[1]).to(self.hparams.device) * 10000.0) + torch.eye(struct_adj.shape[1]).to(self.hparams.device) * 1.0
     self.struct_emb = self.struct_gcn(self.struct_emb.unsqueeze(0), struct_adj.unsqueeze(0)).squeeze()
+#    print("struct_adj:", struct_adj[0], struct_adj[1], struct_adj[2])
+#    print("struct_adj 1:", torch.sum(struct_adj, 1))
+#    print("struct_adj 0:", torch.sum(struct_adj, 0))
     
 ## C2N
-#    struct_message = torch.mm(self.struct_assign, self.struct_emb)
-#    self.r_s= self.sigmoid(self.l_s(torch.cat((raw_feat, struct_message), 1)))
-#    raw_feat = raw_feat + self.r_s * struct_message
-
     struct_message = torch.mm(self.raw_struct_assign, self.struct_emb)
+#    print("struct_assign:", torch.sum(self.struct_assign, 1), torch.sum(self.struct_assign, 0))
+#    print("raw_struct_assign:", torch.sum(self.raw_struct_assign, 1), torch.sum(self.raw_struct_assign, 0))
+#    print("struct_message:", struct_message)
+    self.r_s= self.sigmoid(self.l_s(torch.cat((raw_feat, struct_message), 1)))
     raw_feat = raw_feat + struct_message
+
+#    struct_message = torch.mm(self.raw_struct_assign, self.struct_emb)
+#    raw_feat = raw_feat + 0.0 * struct_message
 ## N2N
     raw_feat = self.node_gat(raw_feat, raw_adj)    
 
